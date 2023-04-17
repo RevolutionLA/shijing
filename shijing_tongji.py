@@ -3,7 +3,7 @@ import re
 from collections import defaultdict
 
 # 读取《诗经》文本文件
-with open('C:\\Users\\LA-GPT\\Desktop\\LA\\GPT\\shijing\\shijing.txt', 'r', encoding='gbk') as f:
+with open('C:\\xxxxxxxxxxxxxxxxxxxxxxxxx\\shijing.txt', 'r', encoding='gbk') as f:
     text = f.read()
 
 # 使用正则表达式提取文本中的汉字
