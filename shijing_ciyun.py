@@ -3,7 +3,7 @@ from wordcloud import WordCloud
 from collections import Counter
 
 # 读取《诗经》文本文件，使用 'gbk' 编码方式解码
-with open('C:\\Users\\LA-GPT\\Desktop\\LA\\GPT\\shijing\\shijing.txt', 'r', encoding='gbk') as f:
+with open('C:\\xxxxxxxxxxxxxxxxx\\shijing.txt', 'r', encoding='gbk') as f:
     text = f.read()
 
 # 统计每个汉字的频数
