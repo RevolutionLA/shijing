@@ -4,7 +4,7 @@ from collections import Counter
 import jieba
 
 # 读取《诗经》文本文件，使用 'gbk' 编码方式解码
-with open('C:\\Users\\LA-GPT\\Desktop\\LA\\GPT\\shijing\\shijing.txt', 'r', encoding='gbk') as f:
+with open('C:\\xxxxxxxx\\shijing.txt', 'r', encoding='gbk') as f:
     text = f.read()
 
 # 使用 jieba 进行中文分词，过滤掉标点符号
