@@ -210,7 +210,100 @@ def parse(raw_text: str, overrides: dict[str, str] | None = None) -> Corpus:
         out.append(Poem(idx=i, group=p['group'], part=part_of(p['group']),
                         title=p['title'], stanzas=body,
                         versions=p['versions']))
-    return Corpus(poems=out, findings=findings)
+
+    out, stitched = drop_stitched_stanzas(out)
+    if stitched:
+        findings.append('剔除跨篇粘贴串台的整章：' + '；'.join(
+            f'《{t}》{n} 章（{why}）' for t, n, why in stitched))
+    return Corpus(poems=_renumber(out), findings=findings)
+
+
+def _norm_stanza(stanza: str) -> str:
+    from .clean import normalize
+    return ''.join(HAN.findall(normalize(stanza)))
+
+
+def _parallel(stanza: str, others: list[str]) -> float:
+    """与同篇其他章的最高相似度——重章叠句的判据。"""
+    a = _norm_stanza(stanza)
+    best = 0.0
+    for other in others:
+        b = _norm_stanza(other)
+        if not b:
+            continue
+        n = max(len(a), len(b))
+        best = max(best, sum(1 for x, y in zip(a, b, strict=False) if x == y) / n)
+    return best
+
+
+MIN_STITCH_CHARS = 12
+MIN_STITCH_PARALLEL = 0.5
+
+
+def drop_stitched_stanzas(poems: list[Poem]) -> tuple[list[Poem], list[tuple[str, int, str]]]:
+    """剔除"整章被粘到另一篇尾部"的串台。
+
+    判定要同时满足三条，缺一即保留：同一整章（≥12 字）逐字出现在两篇之中；
+    在待剔篇里位于结尾的连续段上；且与该篇自身的其他章不构成重章叠句。
+    第三条是关键——《候人》三、四章与本篇第二章同框平行，是正本；
+    《蓼莪》末二章与本篇父子之辞毫无平行，才是外来的。
+    """
+    keys: dict[str, set[int]] = {}
+    for pi, p in enumerate(poems):
+        for st in p.stanzas:
+            key = _norm_stanza(st)
+            if len(key) >= MIN_STITCH_CHARS:
+                keys.setdefault(key, set()).add(pi)
+    # 与他篇逐字相同的章，才可能是被粘过来的
+    shared: dict[int, set[int]] = {}
+    for key, pos in keys.items():
+        if len(pos) >= 2:
+            for pi in pos:
+                shared.setdefault(pi, set()).add(key)
+
+    drop: dict[int, set[int]] = {}
+    notes: list[tuple[str, int, str]] = []
+    for pi, p in enumerate(poems):
+        if len(p.stanzas) < 3:
+            continue  # 章数太少无从判断平行，一律保留
+        foreign = {i for i, st in enumerate(p.stanzas)
+                   if _norm_stanza(st) in shared.get(pi, set())}
+        # 取结尾的连续外来段——粘贴串台的形态就是整段追加在后面
+        run: list[int] = []
+        for i in range(len(p.stanzas) - 1, -1, -1):
+            if i in foreign:
+                run.append(i)
+            else:
+                break
+        if not run or len(run) == len(p.stanzas):
+            continue  # 全篇与另一篇相同的是被粘的那本（如《大东》），保留
+        rest = [st for i, st in enumerate(p.stanzas) if i not in run]
+        if max(_parallel(p.stanzas[i], rest) for i in run) >= MIN_STITCH_PARALLEL:
+            continue  # 与本篇构成重章叠句，是正本不是外来
+        donors = '、'.join(sorted({poems[q].title
+                                  for i in run
+                                  for q in keys[_norm_stanza(p.stanzas[i])]
+                                  if q != pi}))
+        drop[pi] = set(run)
+        notes.append((p.title, len(run),
+                      f'与《{donors}》逐字相同、位于本篇尾部、且与本篇诸章无平行'))
+
+    if not drop:
+        return poems, notes
+    out = []
+    for pi, p in enumerate(poems):
+        bad = drop.get(pi)
+        if bad:
+            p = Poem(p.idx, p.group, p.part, p.title,
+                     tuple(s for k, s in enumerate(p.stanzas) if k not in bad),
+                     p.versions)
+        out.append(p)
+    return out, notes
+
+
+def _renumber(poems: list[Poem]) -> list[Poem]:
+    return [Poem(i, p.group, p.part, p.title, p.stanzas, p.versions)
+            for i, p in enumerate(poems, 1)]
 
 
 def load_raw(path: str | Path = 'data/raw/shijing.txt') -> str:

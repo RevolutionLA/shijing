@@ -8,7 +8,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import analyze, clean, refrain, rhyme, visuals
+from . import analyze, ancient, clean, refrain, rhyme, visuals
 from . import corpus as corpus_mod
 
 CORPUS = Path('data/corpus.json')
@@ -113,6 +113,8 @@ def cmd_refrain(args) -> int:
 
 def cmd_rhyme(args) -> int:
     c = load_corpus(args)
+    if args.system == 'ancient':
+        return cmd_rhyme_ancient(args, c)
     skip = not args.keep_particles
     if args.poem:
         p = _scope(c, args.poem).poems[0]
@@ -131,6 +133,42 @@ def cmd_rhyme(args) -> int:
     rs = sorted(rhyme.schemes(c, skip), key=lambda r: (-r.turns, r.poem.idx))
     emit([r.row() for r in rs[:args.top]], args.format,
          ['idx', 'group', 'title', 'lines', 'groups', 'turns', 'scheme'])
+    return 0
+
+
+def cmd_rhyme_ancient(args, c) -> int:
+    """上古音口径：韵脚取自 Baxter《上古音手册》押韵字表，不是推断。"""
+    path = args.rhyme_data
+    if args.poem:
+        p = _scope(c, args.poem).poems[0]
+        one = corpus_mod.Corpus(poems=[p], findings=[])
+        sch = ancient.schemes(one, path)
+        if not sch:
+            raise SystemExit('该篇在韵脚表中没有对应记录')
+        s = sch[0]
+        print(f'{p.group}·{p.title}  韵式 {s.scheme}')
+        print(f'  {s.lines} 句 / 入韵 {s.rhyming} 句 ({s.rate:.1%}) / '
+              f'韵类 {s.groups} / 换韵 {s.turns} / 句中韵 {s.internal}')
+        for cl, letter in zip(s.clauses,
+                              [m for m in s.scheme if m != '|'], strict=False):
+            if cl.rhyme_chars:
+                where = ''.join(f'{c}@{i}' for c, i in
+                                zip(cl.rhyme_chars, cl.positions, strict=True))
+                print(f'  {letter}  {cl.text}   韵脚 {where}')
+            else:
+                print(f'  ·  {cl.text}   （不入韵）')
+        return 0
+    if args.what == 'compare':
+        print(json.dumps(ancient.compare_modern(c, path),
+                         ensure_ascii=False, indent=1))
+        return 0
+    if args.what == 'summary':
+        print(json.dumps(ancient.summary(c, path), ensure_ascii=False, indent=1))
+        return 0
+    rs = sorted(ancient.schemes(c, path), key=lambda r: (-r.turns, r.poem_idx))
+    emit([r.row() for r in rs[:args.top]], args.format,
+         ['idx', 'group', 'title', 'lines', 'rhyming', 'rate', 'groups',
+          'turns', 'internal', 'scheme'])
     return 0
 
 
@@ -186,7 +224,9 @@ def cmd_report(args) -> int:
         '集中度': [f'{int(k * 100)}% 由前 {n} 个字覆盖' for k, n in analyze.coverage(cs)],
         'Zipf决定系数': round(analyze.zipf_r2(cs), 4),
         '复沓': refrain.summary(c),
-        '韵脚': rhyme.summary(c),
+        '韵脚_上古音': ancient.summary(c),
+        '韵脚_今音对照': ancient.compare_modern(c),
+        '韵脚_今音口径': rhyme.summary(c),
         '语料修复记录': c.findings,
     }
     print(json.dumps(out, ensure_ascii=False, indent=1))
@@ -227,10 +267,15 @@ def build_parser() -> argparse.ArgumentParser:
     common(sp, poem=False)
     sp.set_defaults(fn=cmd_refrain)
 
-    sp = sub.add_parser('rhyme', help='韵脚（今音口径，见模块说明的边界）')
-    sp.add_argument('--what', choices=['summary', 'table'], default='table')
+    sp = sub.add_parser('rhyme', help='韵脚：上古音口径（默认，取权威标注）或今音口径')
+    sp.add_argument('--system', choices=['ancient', 'modern'], default='ancient',
+                    help='ancient=Baxter《上古音手册》押韵字表；modern=今音韵母归类')
+    sp.add_argument('--what', choices=['summary', 'table', 'compare'], default='table',
+                    help='compare 仅上古口径：量化今音失真')
+    sp.add_argument('--rhyme-data', default=str(ancient.DEFAULT_PATH),
+                    help='韵脚表路径（CC-BY-4.0，见 data/README.md）')
     sp.add_argument('--keep-particles', action='store_true',
-                    help='句末语助字（之/兮…）也当韵脚，默认跳过')
+                    help='仅今音口径：句末语助字（之/兮…）也当韵脚，默认跳过')
     common(sp)
     sp.set_defaults(fn=cmd_rhyme)
 

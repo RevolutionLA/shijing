@@ -95,3 +95,36 @@ def test_篇内重复句被保留(corpus):
            if len(set(p.stanzas)) < len(p.stanzas)]
     assert dup, '没有任何一篇含完全相同的章，疑似误用了整行去重'
     assert any(p.title == '园有桃' for p in dup)
+
+
+def test_跨篇粘贴串台已剔除(corpus):
+    """《大东》全篇 7 章、《候人》末 2 章曾被整段粘到别的篇目尾部。"""
+    by = {p.title: p for p in corpus.poems}
+    assert len(by['殷武'].stanzas) == 6
+    assert len(by['蓼莪'].stanzas) == 5
+    # 正本不受影响
+    assert len(by['大东'].stanzas) == 7
+    assert len(by['候人'].stanzas) == 4
+
+
+def test_语料内不再有整章跨篇重复(corpus):
+    from shijing.corpus import MIN_STITCH_CHARS, _norm_stanza
+    seen: dict[str, set[int]] = {}
+    for p in corpus.poems:
+        for st in p.stanzas:
+            k = _norm_stanza(st)
+            if len(k) >= MIN_STITCH_CHARS:
+                seen.setdefault(k, set()).add(p.idx)
+    assert not [k for k, v in seen.items() if len(v) > 1]
+
+
+def test_串台判定要求本篇无平行章(corpus):
+    """《候人》三四章与本篇第二章同框平行，属正本；不得被误删。"""
+    hou = [p for p in corpus.poems if p.title == '候人'][0]
+    assert len(hou.stanzas) == 4
+    from shijing.corpus import _parallel
+    assert _parallel(hou.stanzas[2], list(hou.stanzas[:2])) >= 0.5
+
+
+def test_字数含串台剔除后仍接近三万(corpus):
+    assert 29000 <= corpus.total_chars <= 31500
