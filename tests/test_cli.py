@@ -77,8 +77,17 @@ def test_报告含修复记录(capsys):
 
 
 def test_出图落盘(tmp_path, capsys):
+    from shijing.visuals import find_font
+
+    try:
+        font = find_font()
+    except SystemExit:
+        # 出图必须有中文字体，否则全是方框。CI 会显式装 fonts-noto-cjk，
+        # 本地缺字体时跳过而不是报一个与环境无关的失败。
+        pytest.skip('无可用中文字体')
     out = tmp_path / 'cloud.png'
-    run(capsys, 'cloud', '--kind', 'char', '--top', '80', '--out', str(out))
+    run(capsys, 'cloud', '--kind', 'char', '--top', '80',
+        '--font', font, '--out', str(out))
     assert out.exists() and out.stat().st_size > 1000
 
 
