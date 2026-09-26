@@ -50,7 +50,7 @@ def emit(rows, fmt: str, columns: list[str] | None = None) -> None:
         print(buf.getvalue(), end='')
         return
     cols = columns or (list(rows[0].keys()) if rows else [])
-    if not cols:
+    if not rows or not cols:
         return
     widths = [max(len(c), *(len(str(r.get(c, ''))) for r in rows)) for c in cols]
     print('  '.join(str(c).ljust(w) for c, w in zip(cols, widths, strict=False)))
@@ -196,6 +196,7 @@ def cmd_search(args) -> int:
                              'line': s.strip()})
     if not rows:
         print('没有命中。')
+        return 0
     emit(rows[:args.top], args.format, ['group', 'title', 'stanza', 'line'])
     return 0
 

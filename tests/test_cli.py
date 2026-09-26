@@ -54,6 +54,12 @@ def test_检索支持繁简通搜(capsys):
     assert json.loads(a) == json.loads(b)
 
 
+def test_检索无命中不报错(capsys):
+    for fmt in ('table', 'json', 'csv'):
+        out = run(capsys, 'search', '如珪', '--format', fmt)
+        assert '没有命中' in out
+
+
 def test_打印原文(capsys):
     out = run(capsys, 'show', '桃夭')
     assert '桃之夭夭' in out and '灼灼其华' in out
