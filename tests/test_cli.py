@@ -55,9 +55,32 @@ def test_检索支持繁简通搜(capsys):
 
 
 def test_检索无命中不报错(capsys):
-    for fmt in ('table', 'json', 'csv'):
-        out = run(capsys, 'search', '如珪', '--format', fmt)
-        assert '没有命中' in out
+    out = run(capsys, 'search', '如珪')
+    assert '没有命中' in out
+
+
+def test_检索无命中的机器口径仍是合法结构(capsys):
+    assert json.loads(run(capsys, 'search', '如珪', '--format', 'json')) == []
+    assert run(capsys, 'search', '如珪', '--format', 'csv').strip() == \
+        'group,title,stanza,line'
+
+
+def test_韵脚表在任意工作目录都能找到(tmp_path, capsys, monkeypatch):
+    """--rhyme-data 是相对路径，必须与 --corpus 一样能回退到仓库根。"""
+    (tmp_path / 'elsewhere').mkdir()
+    monkeypatch.chdir(tmp_path / 'elsewhere')
+    out = run(capsys, 'rhyme', '--poem', '关雎')
+    assert '韵式' in out and '关关雎鸠' in out
+
+
+def test_版本号只有一个来源():
+    import tomllib
+
+    from shijing import __version__
+    root = cli.locate('pyproject.toml').parent
+    declared = tomllib.loads((root / 'pyproject.toml').read_text('utf-8')) \
+        ['project']['version']
+    assert __version__ == declared
 
 
 def test_打印原文(capsys):

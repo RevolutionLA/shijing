@@ -71,3 +71,20 @@ def test_缺失韵脚表时报错清楚(tmp_path):
     with pytest.raises(SystemExit) as e:
         ancient.load(tmp_path / 'nope.csv')
     assert 'CC-BY' in str(e.value) or 'data/README' in str(e.value)
+
+
+def test_静态韵脚表只读盘一次(corpus, monkeypatch):
+    """summary 内部三处取表；表是静态的，不该重复打开。"""
+    from pathlib import Path
+    ancient._read.cache_clear()
+    opens: list[str] = []
+    real = Path.open
+
+    def counted(self, *a, **k):
+        opens.append(self.name)
+        return real(self, *a, **k)
+
+    monkeypatch.setattr(Path, 'open', counted)
+    ancient.summary(corpus)
+    ancient.compare_modern(corpus)
+    assert opens.count('rhyme_baxter1992.csv') == 1

@@ -78,21 +78,27 @@ def links(sylls: list[Syllable]) -> list[str]:
     return out
 
 
-def hits(corpus: Corpus, query: str) -> list[dict]:
-    """query 作为连续字符串命中的分句，繁简通搜。"""
-    q = normalize(query)
-    rows = []
+def _scan(corpus: Corpus) -> list[tuple[str, str, int, int, str, str]]:
+    """(分组, 篇名, 篇序, 章号, 原文, 归一文)。整库归一只做一次。"""
+    out = []
     for p in corpus.poems:
         for n, st in enumerate(p.stanzas, 1):
-            if q in normalize(st):
-                rows.append({'group': p.group, 'title': p.title, 'poem_idx': p.idx,
-                             'stanza': n, 'line': st.strip()})
-    return rows
+            out.append((p.group, p.title, p.idx, n, st.strip(), normalize(st)))
+    return out
 
 
-def char_facts(corpus: Corpus, query: str) -> list[dict]:
+def hits(corpus: Corpus, query: str,
+         lines: list[tuple] | None = None) -> list[dict]:
+    """query 作为连续字符串命中的分句，繁简通搜。"""
+    q = normalize(query)
+    return [{'group': g, 'title': t, 'poem_idx': i, 'stanza': n, 'line': raw}
+            for g, t, i, n, raw, ns in (lines or _scan(corpus)) if q in ns]
+
+
+def char_facts(corpus: Corpus, query: str,
+               stats: dict[str, analyze.Stat] | None = None) -> list[dict]:
     """逐字的词频、所见篇数与档位。"""
-    stats = {s.token: s for s in analyze.char_stats(corpus)}
+    stats = stats if stats is not None else {s.token: s for s in analyze.char_stats(corpus)}
     out = []
     for ch in dict.fromkeys(re.findall(r'[一-鿿]', normalize(query))):
         s = stats.get(ch)
@@ -115,17 +121,24 @@ def contexts(corpus: Corpus, rows: list[dict]) -> list[dict]:
     return out
 
 
-def char_sources(corpus: Corpus, query: str, limit: int = 3) -> list[dict]:
-    """组合不成句时，逐字给出它自己的出处——拼凑的名字全靠这栏来判。"""
+def char_sources(corpus: Corpus, query: str, limit: int | None = None,
+                 lines: list[tuple] | None = None) -> list[dict]:
+    """组合不成句时，逐字给出它自己的出处——拼凑的名字全靠这栏来判。
+
+    limit 默认不限：数据层给全量，截断是展示层的事。
+    """
+    lines = lines if lines is not None else _scan(corpus)
     out = []
     for ch in dict.fromkeys(re.findall(r'[一-鿿]', normalize(query))):
-        rows = hits(corpus, ch)
-        out.append({'char': ch, 'count': len(rows), 'examples': rows[:limit]})
+        rows = hits(corpus, ch, lines)
+        out.append({'char': ch, 'count': len(rows),
+                    'examples': rows if limit is None else rows[:limit]})
     return out
 
 
 def inspect(corpus: Corpus, query: str, with_context: bool = True) -> dict:
-    rows = hits(corpus, query)
+    lines = _scan(corpus)
+    rows = hits(corpus, query, lines)
     syls = reading(query)
     cs = contexts(corpus, rows) if with_context else []
     if not rows:
@@ -140,7 +153,7 @@ def inspect(corpus: Corpus, query: str, with_context: bool = True) -> dict:
         'hit_count': len(rows),
         'hits': rows,
         'chars': char_facts(corpus, query),
-        'char_sources': [] if rows else char_sources(corpus, query),
+        'char_sources': [] if rows else char_sources(corpus, query, lines=lines),
         'reading': [s.row() for s in syls],
         'links': links(syls),
         'contexts': cs,

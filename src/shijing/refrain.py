@@ -103,12 +103,13 @@ def summary(corpus: Corpus) -> dict:
     par = parallelism(corpus)
     strong = [r for r in par if r.score >= 0.6]
     sh = shared_lines(corpus)
+    red = reduplications(corpus)
     return {
         'poems': len(par),
         'parallel_poems': len(strong),
         'mean_parallelism': round(sum(r.score for r in par) / len(par), 4) if par else 0.0,
         'top_parallel': [r.row() for r in par[:5]],
-        'reduplication_total': sum(r.freq for r in reduplications(corpus)),
-        'reduplication_kinds': len(reduplications(corpus)),
+        'reduplication_total': sum(r.freq for r in red),
+        'reduplication_kinds': len(red),
         'shared_line_kinds': len(sh),
     }

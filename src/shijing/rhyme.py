@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
+from string import ascii_lowercase, ascii_uppercase, digits
 
 from .clean import normalize
 from .corpus import Corpus, Poem
@@ -15,6 +16,7 @@ from .refrain import sentences
 
 # 语助字收尾不参与押韵，是《诗经》用韵的通例（「关关雎鸠」押鸠而非「之」）
 PARTICLES = set('之兮只思蔼阿矣也哉夫而其')
+_LABELS = ascii_uppercase + ascii_lowercase + digits
 
 
 @dataclass
@@ -63,7 +65,8 @@ def label_scheme(finals: list[str]) -> tuple[str, int, int]:
     order: list[str] = []
     for f in finals:
         if f not in letters:
-            letters[f] = chr(ord('A') + len(letters) % 26)
+            # 今音韵母总数不到 40，62 个标签不会用尽；取模循环会让两个韵部共用字母
+            letters[f] = _LABELS[len(letters)]
             order.append(f)
     scheme = ''.join(letters[f] for f in finals)
     turns = sum(1 for a, b in zip(scheme, scheme[1:], strict=False) if a != b)

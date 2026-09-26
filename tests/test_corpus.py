@@ -128,3 +128,35 @@ def test_串台判定要求本篇无平行章(corpus):
 
 def test_字数含串台剔除后仍接近三万(corpus):
     assert 29000 <= corpus.total_chars <= 31500
+
+
+def _poem(idx, title, stanzas):
+    return C.Poem(idx=idx, group='测试', part='测试', title=title,
+                  stanzas=tuple(stanzas))
+
+
+# 剔除规则要求整章归一后 ≥12 字，构造用例必须够长才有意义
+LONG = '昔我往矣，杨柳依依。今我来思，雨雪霏霏'          # 16 字
+LONG2 = '死生契阔，与子成说。执子之手，与子偕老'          # 16 字
+NEAR = '昔我往矣，杨柳依依。今我来思，雨露霏霏'           # 与 LONG 仅一字之差
+
+
+def test_尾部套语与本篇平行时不得被误删():
+    """同一整章在两篇都出现，但在甲篇它与其余章构成重章叠句——是正本，不许删。"""
+    a = _poem(1, '甲', [LONG, NEAR, LONG])
+    b = _poem(2, '乙', [LONG, LONG2, NEAR])
+    kept, notes = C.drop_stitched_stanzas([a, b])
+    assert next(p for p in kept if p.title == '甲').stanzas == a.stanzas
+    assert not any(t == '甲' for t, _, _ in notes)
+
+
+def test_尾部整章与他篇逐字相同且无平行时判为串台():
+    """同一构造换成本篇毫无平行的尾章——必须剔除，并留下可核对的理由。"""
+    a = _poem(1, '甲', ['习习谷风，维风及雨。瞻望弗及，实劳我心',
+                        '采葑采菲，无以下体。德音莫违，及尔同死', LONG])
+    b = _poem(2, '乙', [LONG, LONG2, '知我者谓我心忧，不知我者谓我何求'])
+    kept, notes = C.drop_stitched_stanzas([a, b])
+    assert [t for t, _, _ in notes] == ['甲']
+    assert notes[0][1] == 1
+    assert next(p for p in kept if p.title == '甲').stanzas == (
+        a.stanzas[0], a.stanzas[1])

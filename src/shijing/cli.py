@@ -8,7 +8,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import analyze, ancient, clean, naming, refrain, rhyme, visuals
+from . import __version__, analyze, ancient, clean, naming, paths, refrain, rhyme, visuals
 from . import corpus as corpus_mod
 
 CORPUS = Path('data/corpus.json')
@@ -18,15 +18,7 @@ OVERRIDES = Path('data/overrides.json')
 
 def locate(rel: str | Path) -> Path:
     """先按当前目录找，再回退到仓库根，使 CLI 在任意工作目录下都可用。"""
-    rel = Path(rel)
-    if rel.is_absolute():
-        return rel
-    here = Path(__file__).resolve()
-    for base in [Path.cwd(), *here.parents[2:4]]:
-        cand = base / rel
-        if cand.exists():
-            return cand
-    return Path.cwd() / rel
+    return paths.locate(rel)
 
 
 def load_corpus(args) -> corpus_mod.Corpus:
@@ -194,10 +186,17 @@ def cmd_search(args) -> int:
             if q in ns:
                 rows.append({'group': p.group, 'title': p.title, 'stanza': n,
                              'line': s.strip()})
+    cols = ['group', 'title', 'stanza', 'line']
     if not rows:
-        print('没有命中。')
+        # 机器口径必须仍是合法结构：json 出 []，csv 出表头，只有 table 说人话
+        if args.format == 'json':
+            emit([], 'json')
+        elif args.format == 'csv':
+            emit([], 'csv', cols)
+        else:
+            print('没有命中。')
         return 0
-    emit(rows[:args.top], args.format, ['group', 'title', 'stanza', 'line'])
+    emit(rows[:args.top], args.format, cols)
     return 0
 
 
@@ -223,10 +222,12 @@ def cmd_name(args) -> int:
             if not cs['count']:
                 print(f'  {cs["char"]}：《诗经》全库未见此字。')
                 continue
-            more = f'（共 {cs["count"]} 处，列前 {len(cs["examples"])}）' \
-                if cs['count'] > len(cs['examples']) else ''
-            print(f'  {cs["char"]}：{more}')
-            for r in cs['examples']:
+            shown = cs['examples'][:args.top]
+            if cs['count'] > len(shown):
+                print(f'  {cs["char"]}：（共 {cs["count"]} 处，列前 {len(shown)}）')
+            else:
+                print(f'  {cs["char"]}：')
+            for r in shown:
                 print(f'    {r["group"]}·{r["title"]} 第{r["stanza"]}章：{r["line"]}')
     print('\n用字：')
     chars = _zh(data['chars'], {'char': '字', 'freq': '次数', 'poems': '所见篇数',
@@ -292,6 +293,7 @@ def cmd_report(args) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog='shijing', description='《诗经》语料与统计分析')
+    ap.add_argument('--version', action='version', version=f'shijing {__version__}')
     ap.add_argument('--corpus', default=str(CORPUS), help='结构化语料 JSON 路径')
     sub = ap.add_subparsers(dest='cmd', required=True)
 
@@ -351,7 +353,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser('name', help='候选名核验：出处、语境、用字档位、普通话读音')
     sp.add_argument('query', help='候选的名字，如 令仪 / 之恒 / 德棣')
     sp.add_argument('--format', choices=['table', 'json'], default='table')
-    sp.add_argument('--top', type=int, default=10)
+    sp.add_argument('--top', type=int, default=3,
+                    help='命中句与单字出处各最多列几条（默认 3）')
     sp.add_argument('--no-context', action='store_true', help='不打印整首诗')
     sp.add_argument('--max-context', type=int, default=3,
                     help='最多打印几首命中诗的全文（默认 3）')

@@ -101,3 +101,24 @@ def test_name命令的两种口径(capsys):
     assert cli.main(['name', '德棣', '--format', 'json']) == 0
     data = json.loads(capsys.readouterr().out)
     assert data['hit_count'] == 0 and len(data['chars']) == 2
+
+
+def test_top与max_context各自截断(capsys):
+    assert cli.main(['name', '君子', '--top', '2', '--max-context', '1']) == 0
+    text = capsys.readouterr().out
+    hits = [ln for ln in text.splitlines()
+            if ln.startswith(('国风·', '小雅·', '大雅·'))]
+    assert len(hits) == 2                       # 命中句按 --top 截
+    assert '共 62 首' in text and '余 61 首' in text   # 语境按 --max-context 截
+
+
+def test_整库归一只做一遍(corpus):
+    """inspect 曾对每个字各扫全库并重复 normalize，这里钉住它只扫一次。"""
+    calls = []
+    real = naming._scan
+    naming._scan = lambda c: (calls.append(1), real(c))[1]
+    try:
+        naming.inspect(corpus, '德棣')
+    finally:
+        naming._scan = real
+    assert len(calls) == 1

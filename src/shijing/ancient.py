@@ -5,7 +5,8 @@
 入韵、韵脚字是哪一个、同篇内哪些字互押。所以本模块不做推断，只做转录与汇总。
 
 与今音口径（`rhyme.py`）的关键差别有三条，都是今音口径系统做不到的：
-1. 韵脚字不必在句末——「薄言捋之」押「捋」而非「之」，且有 311 句是句中韵；
+1. 韵脚字不必在句末——「薄言捋之」押「捋」而非「之」，句中双韵的句子数以
+   `shijing rhyme --what summary` 的实测为准；
 2. 约四分之一的句子根本不参与押韵，无需猜语助字白名单；
 3. 互押关系直接给出上古韵部归并的证据，不受今音演变干扰。
 """
@@ -15,9 +16,12 @@ import csv
 import string
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
+from .clean import HAN
 from .corpus import Corpus
+from .paths import locate
 from .rhyme import _finals_loader
 
 DEFAULT_PATH = 'data/rhyme_baxter1992.csv'
@@ -77,22 +81,33 @@ class AncientScheme:
                 'scheme': self.scheme}
 
 
-def load(path: str | Path = DEFAULT_PATH) -> dict[int, list[Clause]]:
-    """读入逐句韵脚表，按篇序号分组。"""
-    p = Path(path)
-    if not p.exists():
-        raise SystemExit(f'找不到韵脚数据 {p}；它应随仓库一起提供（见 data/README.md）')
+@lru_cache(maxsize=4)
+def _read(path: Path) -> dict[int, list[Clause]]:
     out: dict[int, list[Clause]] = defaultdict(list)
-    for r in csv.DictReader(open(p, encoding='utf-8')):
-        out[int(r['poem'])].append(Clause(
-            idx=int(r['idx']), stanza=int(r['stanza']), line=int(r['line']),
-            text=r['clause'],
-            rhyme_chars=tuple(r['rhyme_chars']),
-            positions=tuple(int(x) for x in r['rhyme_pos'].split()),
-            keys=tuple(x for x in r['rhyme_ids'].split('|') if x)))
+    with path.open(encoding='utf-8', newline='') as fh:
+        for r in csv.DictReader(fh):
+            text = r['clause']
+            if len(HAN.findall(text)) != len(text):
+                raise SystemExit(
+                    f'韵脚表 {path.name} 的分句含非汉字字符（{text!r}）：'
+                    '表内应当只留汉字，句末位置比较依赖这一点')
+            out[int(r['poem'])].append(Clause(
+                idx=int(r['idx']), stanza=int(r['stanza']), line=int(r['line']),
+                text=text,
+                rhyme_chars=tuple(r['rhyme_chars']),
+                positions=tuple(int(x) for x in r['rhyme_pos'].split()),
+                keys=tuple(x for x in r['rhyme_ids'].split('|') if x)))
     for v in out.values():
         v.sort(key=lambda c: c.idx)
     return dict(out)
+
+
+def load(path: str | Path = DEFAULT_PATH) -> dict[int, list[Clause]]:
+    """读入逐句韵脚表，按篇序号分组。静态表，同一路径只读盘一次。"""
+    p = locate(path)
+    if not p.exists():
+        raise SystemExit(f'找不到韵脚数据 {p}；它应随仓库一起提供（见 data/README.md）')
+    return _read(p)
 
 
 def schemes(corpus: Corpus, path: str | Path = DEFAULT_PATH) -> list[AncientScheme]:

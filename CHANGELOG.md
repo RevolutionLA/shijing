@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.4.1
+
+按 `docs/review-2026-09-27.md` 的 14 条评审逐条核验后修掉其中 13 条（第 ⑬ 条是误报）。
+
+### 修复
+
+- **P0 韵脚表路径未走 `locate()`**：`rhyme --system ancient` 在仓库根以外的目录运行必崩
+  （实测：`找不到韵脚数据 data\rhyme_baxter1992.csv`）。现 `ancient.load()` 内部解析路径，
+  与 `CORPUS`/`RAW`/`OVERRIDES` 口径一致。
+- **P1 `search` 无命中时的机器口径**：原先三种 `--format` 都打印「没有命中。」，
+  `--format json` 的下游 `json.loads` 直接抛异常。现 json 出 `[]`、csv 只出表头、
+  table 仍说人话。（本条修订了 0.3.1 中"三种口径一致"的说法——一致是指都不崩，
+  但不该以破坏结构为代价。）
+- **P1 版本号两个来源**：`__init__.__version__` 硬写 `0.2.0`，与 pyproject 的 `0.4.0` 脱节。
+  现从 `importlib.metadata` 读取（未安装时退回 `0.0.0+unknown`），并新增 `shijing --version`。
+- **P3 `rhyme.label_scheme` 标签取模碰撞**：`chr('A' + n % 26)` 在韵部超过 26 时复用字母。
+  实测《頍弁》恰好 26 部，正踩在边界上。改用 62 个不重复字母表，不再循环。
+- **P3 `refrain.summary` 重复计算叠字表**：`reduplications(corpus)` 被调两次，取一次复用。
+- **P2 `visuals.find_font` 死分支**：`explicit` 已在首轮循环里检查过，末尾那句永不命中；
+  现 `--font` 指向不存在的路径时直接报出该路径，而不是落到通用兜底提示。
+
+### 性能与结构
+
+- **`ancient` 一次 `summary` 读盘 3 次** → `load()` 加 `lru_cache`（静态 CSV，同路径只读一次），
+  `report` 由 4–5 次降为 1 次。
+- **`naming` 逐字全语料重扫 + 重复归一** → 抽出 `_scan()`，整库归一只做一次，
+  `hits`/`char_sources` 共用同一份行表；`char_sources` 数据层给全量、截断交给展示层。
+- **数据目录定位硬编码 `parents[2]` 两处** → 新增 `src/shijing/paths.py`（`PKG_DIR` /
+  `REPO_ROOT` / `DATA_DIR` / `locate()`），`clean.py` 与 `cli.py` 都引用它。
+
+### 正确性边界（已显式化，非行为变更）
+
+- 韵脚表 `clause` 曾隐式假设"只含汉字"（句中韵位置比较依赖它），现 `load()` 逐行断言，
+  一旦 raw 混入标点会立刻报错而不是静默失准。
+- 串台剔除的规则只保证"不误删"、不保证"不漏删"（外来整章若恰好与本篇平行则留在原地，
+  章数 < 3 的篇目不判）。写入 README 诚实边界第 6 条，并补两个合成回归：
+  ≥12 字尾部套语与本篇平行时不得被删、与他篇逐字相同且无平行时判为串台。
+  （首版合成用例误用 8 字章，短于 `MIN_STITCH_CHARS=12` 而空过，已重写。）
+
+### 文档
+
+- `ancient` docstring 里硬写的"311 句句中韵"与 README/CHANGELOG 的 317 不一致 →
+  删掉常量，改为"以 `shijing rhyme --what summary` 实测为准"。
+- `name` 的 `--top` 语义写明：同时限制命中句与单字出处两条列表（默认 3），
+  `--format json` 始终给全量。
+- 评审第 ⑬ 条（"README 推荐 `chars --top 200` 但默认 30，示例缺参数"）经核对为误报：
+  README 该行已带 `--top 200`，未改。
+
+77 项测试全绿（新增 8 项，覆盖上述 P0/P1/P2 与两条边界回归）；`ruff check src tests` 通过；
+`report` 关键常量前后不变（正文汉字 29,645 / 不重复单字 2,746 / 句中韵 317 / 韵脚不在句末 1,086 /
+叠字 684 / 今韵失真 0.2736）。
+
 ## 0.4.0
 
 新增 `shijing name`：把候选名的可核验材料一次给全。

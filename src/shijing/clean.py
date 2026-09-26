@@ -11,13 +11,14 @@ from functools import lru_cache
 from pathlib import Path
 
 from .corpus import HAN
+from .paths import DATA_DIR
 
 PUNCT = '，。！？；：、》《「」『』（）·…—～'
 
 
 @lru_cache(maxsize=1)
 def _table() -> dict[str, str]:
-    p = Path(__file__).resolve().parents[2] / 'data' / 't2s.tsv'
+    p = DATA_DIR / 't2s.tsv'
     if not p.exists():
         return {}
     out = {}

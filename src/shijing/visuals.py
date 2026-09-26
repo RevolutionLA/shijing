@@ -23,11 +23,13 @@ FONT_CANDIDATES = [
 def find_font(explicit: str | None = None) -> str:
     """返回一个可用的中文字体路径。找不到就报清楚的下一步指引，而不是让 wordcloud 乱码。"""
     import shutil
-    for cand in ([explicit] if explicit else []) + FONT_CANDIDATES:
-        if cand and Path(cand).exists():
+    if explicit:
+        if Path(explicit).exists():
+            return explicit
+        raise SystemExit(f'--font 指定的字体不存在：{explicit}（去掉 --font 可自动探测）')
+    for cand in FONT_CANDIDATES:
+        if Path(cand).exists():
             return cand
-    if explicit and Path(explicit).exists():
-        return explicit
     found = shutil.which('fc-list')
     if found:
         import subprocess
