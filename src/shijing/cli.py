@@ -8,7 +8,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import analyze, ancient, clean, refrain, rhyme, visuals
+from . import analyze, ancient, clean, naming, refrain, rhyme, visuals
 from . import corpus as corpus_mod
 
 CORPUS = Path('data/corpus.json')
@@ -201,6 +201,52 @@ def cmd_search(args) -> int:
     return 0
 
 
+def _zh(rows: list[dict], mapping: dict) -> list[dict]:
+    """表格输出用中文表头，--format json 仍保留英文键供脚本使用。"""
+    return [{mapping[k]: v for k, v in r.items() if k in mapping} for r in rows]
+
+
+def cmd_name(args) -> int:
+    c = load_corpus(args)
+    data = naming.inspect(c, args.query, with_context=not args.no_context)
+    if args.format != 'table':
+        emit(data, args.format)
+        return 0
+    print(f'候选：{data["query"]}    连用命中 {data["hit_count"]} 处')
+    hits = _zh(data['hits'], {'group': '分组', 'title': '篇名', 'stanza': '章',
+                              'line': '原句'})
+    emit(hits[:args.top], 'table', ['分组', '篇名', '章', '原句'])
+    if not data['hits']:
+        print('  《诗经》里没有这两个字连用的句子——单字都有，也可能只是拼凑。')
+    print('\n用字：')
+    chars = _zh(data['chars'], {'char': '字', 'freq': '次数', 'poems': '所见篇数',
+                                'tier': '档位'})
+    for r, raw in zip(chars, data['chars'], strict=True):
+        r['备注'] = '虚词' if raw['function'] else ''
+    emit(chars, 'table', ['字', '次数', '所见篇数', '档位', '备注'])
+    print('\n读音（普通话）：')
+    syls = _zh(data['reading'], {'char': '字', 'pinyin': '拼音', 'tone': '声调',
+                                 'initial': '声母', 'final': '韵母'})
+    for r, raw in zip(syls, data['reading'], strict=True):
+        r['又读'] = '、'.join(raw['also'])
+    emit(syls, 'table', ['字', '拼音', '声调', '声母', '韵母', '又读'])
+    for link in data['links']:
+        print(' ', link)
+    if data['contexts']:
+        shown = data['contexts'][:args.max_context]
+        left = len(data['contexts']) - len(shown)
+        head = f'\n语境（必须自己读，代码不判吉凶，共 {len(data["contexts"])} 首）：'
+        print(head)
+        for cx in shown:
+            print(f'  {cx["group"]}·{cx["title"]}')
+            for s in cx['stanzas']:
+                print(f'    {s}')
+        if left:
+            print(f'  …余 {left} 首请用 shijing show 篇名 读，或加大 --max-context')
+    print(f'\n{data["note"]}')
+    return 0
+
+
 def cmd_show(args) -> int:
     c = load_corpus(args)
     for p in _scope(c, args.poem).poems:
@@ -291,6 +337,15 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument('query')
     common(sp, top=50, poem=False)
     sp.set_defaults(fn=cmd_search)
+
+    sp = sub.add_parser('name', help='候选名核验：出处、语境、用字档位、普通话读音')
+    sp.add_argument('query', help='候选的名字，如 令仪 / 之恒 / 德棣')
+    sp.add_argument('--format', choices=['table', 'json'], default='table')
+    sp.add_argument('--top', type=int, default=10)
+    sp.add_argument('--no-context', action='store_true', help='不打印整首诗')
+    sp.add_argument('--max-context', type=int, default=3,
+                    help='最多打印几首命中诗的全文（默认 3）')
+    sp.set_defaults(fn=cmd_name)
 
     sp = sub.add_parser('show', help='打印篇目原文')
     sp.add_argument('poem')
