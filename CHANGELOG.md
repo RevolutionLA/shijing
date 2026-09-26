@@ -15,6 +15,8 @@
   但不该以破坏结构为代价。）
 - **P1 版本号两个来源**：`__init__.__version__` 硬写 `0.2.0`，与 pyproject 的 `0.4.0` 脱节。
   现从 `importlib.metadata` 读取（未安装时退回 `0.0.0+unknown`），并新增 `shijing --version`。
+  钉这条的测试原先用 `tomllib`（Python 3.11+ 才有），CI 的 3.10 上直接 `ModuleNotFoundError`，
+  已改为正则读 `[project] version`。
 - **P3 `rhyme.label_scheme` 标签取模碰撞**：`chr('A' + n % 26)` 在韵部超过 26 时复用字母。
   实测《頍弁》恰好 26 部，正踩在边界上。改用 62 个不重复字母表，不再循环。
 - **P3 `refrain.summary` 重复计算叠字表**：`reduplications(corpus)` 被调两次，取一次复用。

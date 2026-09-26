@@ -74,12 +74,12 @@ def test_韵脚表在任意工作目录都能找到(tmp_path, capsys, monkeypatc
 
 
 def test_版本号只有一个来源():
-    import tomllib
+    import re
 
     from shijing import __version__
-    root = cli.locate('pyproject.toml').parent
-    declared = tomllib.loads((root / 'pyproject.toml').read_text('utf-8')) \
-        ['project']['version']
+    toml = cli.locate('pyproject.toml').read_text('utf-8')
+    # tomllib 要 3.11+，CI 跑 3.10；顶格 version 只有 [project] 那一条
+    declared = re.search(r'^version\s*=\s*"([^"]+)"', toml, re.M).group(1)
     assert __version__ == declared
 
 
