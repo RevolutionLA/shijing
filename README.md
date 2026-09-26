@@ -1,11 +1,111 @@
-# shijing [《诗经》](https://github.com/RevolutionLA/shijing/blob/main/shijing.txt)
+# 诗经 · 语料与统计分析
 
-该仓库代码实现了用Python   
-  1、统计《诗经》全文的字数出现[概率](https://github.com/RevolutionLA/shijing/blob/main/shijing_tongji.py)   
-  2、并通过[字云](https://github.com/RevolutionLA/shijing/blob/main/shijing_ziyun.py)、[词云](https://github.com/RevolutionLA/shijing/edit/main/shijing_ciyun.py)输出。  
-  3、分词使用了jieba库。  
-  4、效果如下图。
+对《诗经》全文做**结构化**与**可复现统计**的 Python 工具包：305 篇 / 30 组 / 约 3 万字，
+带命令行、字频词频、复沓（重章叠句）与韵脚分析，以及跨平台可出图的字云词云。
 
-![Figure_1](https://user-images.githubusercontent.com/40736295/232507679-58f298e2-f9dd-400c-b1ab-b93570ca9abd.png)
-![Figure_2](https://user-images.githubusercontent.com/40736295/232516685-9c26b18b-c390-4f53-9299-c161d66b92c8.png)
+```bash
+pip install -e ".[dev]"
+shijing report              # 一次性输出全部指标
+shijing chars --top 10      # 字频
+shijing refrain --what shared --top 10   # 跨篇套语
+```
 
+---
+
+## 这个仓库原来有什么问题
+
+原版是三个各约 20 行的脚本（现留在 [`legacy/`](legacy/)）。重做前先做了数据体检，
+结论是：**问题主要不在代码，在数据。**
+
+| 检查项 | 原状态 | 现在 |
+|---|---|---|
+| 编码 | 三个脚本都写 `encoding='gbk'`，而 `shijing.txt` 实际是 **UTF-8**，直接跑必崩 | 统一 UTF-8，路径可配 |
+| 文本路径 | 写死 `C:\xxxxxxxxx\shijing.txt` | `data/raw/` + 自动定位，任意工作目录可跑 |
+| 重复粘贴 | 4091 行里 **2514 行（约 61%）是整段重复**；`周頌·清庙之什` 出现 5 次 | 按正文指纹去重，305 篇 |
+| 字数 | **84,455** 字，是真实篇幅的 2.8 倍 | **29,903** 字 |
+| 繁简混排 | 「周頌」与「周颂」、「撻奮」与简体混在一起，同一个字被拆成两笔账 | 统计走归一字形，存档保留原文 |
+| 分组串台 | 粘贴段丢失分组标题，齐风的《南山》等 6 篇被挂在`国风·曹风`下 | 跨粘贴多数表决 + 显式覆盖表 |
+| 表格残留 | `维鹈在梁，不?/td>` 这类网页表格残留，且伴随脱字 | 剥离标签，脱字**如实报告**不臆造 |
+| 篇名解析 | 五字篇名《昊天有成命》会被漏掉 | 支持 1–6 字篇名 |
+| 字云统计口径 | `Counter(text)` 把标点、换行都算成"字" | 只统计汉字 |
+| 出图 | 硬编码 `simhei.ttf` + `plt.show()`，无显示环境即崩 | 跨平台字体探测 + 落盘 PNG |
+
+修正后的篇数是**自证式**的：国风 160 / 小雅 74 / 大雅 31 / 周颂 31 / 鲁颂 4 / 商颂 5
+= **305 篇**，与《毛诗》篇数完全一致；字数从 8.4 万回落到 2.99 万，也落回《诗经》
+应有的量级。这两条都写成了回归测试，防止再退回去。
+
+---
+
+## 语料结构
+
+`shijing build` 从原始文本重建 `data/corpus.json`：
+
+```jsonc
+{ "idx": 1, "group": "国风·周南", "part": "国风", "title": "关雎",
+  "stanzas": ["关关雎鸠，在河之洲。窈窕淑女，君子好逑。", ...],
+  "versions": 3 }        // 合并了几个重复版本
+```
+
+- `data/raw/shijing.txt` — 原始抓取文本，**一字不改地存档**，用于溯源
+- `data/t2s.tsv` — 繁→简归一表（4053 条，只登记繁简有别的字），构建期用 zhconv 生成后冻结，**运行时不依赖 opencc/zhconv**
+- `data/overrides.json` — 人工裁定表，逐条写明理由，可审计
+
+## 命令
+
+| 命令 | 作用 |
+|---|---|
+| `build` | 从 `data/raw/` 重建语料；`--regen-t2s` 重建归一表 |
+| `chars` / `words` | 字频 / 词频（jieba 分词，可 `--keep-stopwords`） |
+| `refrain` | `parallel` 章际平行度、`redup` 叠字、`shared` 跨篇套语 |
+| `rhyme` | 逐篇韵式与韵部；`--keep-particles` 对比语助字口径 |
+| `cloud` | 字云 / 词云出图，`--font` 可指定字体 |
+| `search` / `show` | 全文检索（繁简互通）/ 打印原文 |
+| `report` | 全部指标一次输出 |
+
+`--format table|json|csv`，`--poem 关雎` 限定单篇。
+
+```console
+$ shijing refrain --what shared --top 4
+line      poems  where
+心之忧矣  11     国风·卫风·有狐、国风·曹风·蜉蝣、国风·邶风·柏舟 …
+既见君子  9      国风·周南·汝坟、国风·唐风·扬之水、国风·秦风·车邻 …
+万寿无疆  6      国风·豳风·七月、小雅·南有嘉鱼之什·南山有台 …
+```
+
+## 效果
+
+![字云](docs/img/ziyun.png)
+![词云](docs/img/ciyun.png)
+
+---
+
+## 诚实的边界
+
+写在这里，是为了不让数字看起来比实际更可信：
+
+1. **韵脚是今音口径。** 《诗经》押上古音，用现代韵母归类必然误判——今音同韵而上古
+   不同部的会算成押韵，反之会算成不押。它适合找模式，不能当上古音结论。真要做得接
+   近史实，需要一套上古声韵系统（如郑张尚芳/王力体系）作数据源。
+2. **章的边界沿用原文件的换行。** 原文件有时把两章并成一行，因此 `refrain --what
+   parallel` 的"章"粒度在个别篇目上偏细（如《园有桃》把重复的尾句当成独立一章，
+   平行度算出 1.0）。篇、句两级是可靠的。
+3. **脱字不补。** 原文件有 2 行网页表格残留并伴随丢字（`维鹈在梁，不?/td>`），
+   只剥离标签、保留缺口，由 `build` 的 findings 报出来，不做臆测性补全。
+4. **分组下界未做权威校验。** 各"之什"的内部归属以文件自身为准，只修正了能靠跨粘贴
+   多数表决与覆盖表确定的错位。
+5. **词频依赖 jieba 通用词典。** 它不认识《诗经》的专名与活用，`心之忧` 这类跨句切片
+   会出现。需要更准的词表时，应加一份《诗经》专有词典作为 jieba 用户词典。
+
+## 开发与测试
+
+```bash
+pip install -e ".[dev]"
+pytest -q            # 43 项，含数据规模与篇数的回归断言
+ruff check src tests
+```
+
+CI 在 GitHub Actions 上对 Python 3.10 / 3.11 / 3.12 跑 lint 与测试。
+
+## 许可
+
+MIT。见 [LICENSE](LICENSE)。
