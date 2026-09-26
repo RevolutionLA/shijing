@@ -115,18 +115,32 @@ def contexts(corpus: Corpus, rows: list[dict]) -> list[dict]:
     return out
 
 
+def char_sources(corpus: Corpus, query: str, limit: int = 3) -> list[dict]:
+    """组合不成句时，逐字给出它自己的出处——拼凑的名字全靠这栏来判。"""
+    out = []
+    for ch in dict.fromkeys(re.findall(r'[一-鿿]', normalize(query))):
+        rows = hits(corpus, ch)
+        out.append({'char': ch, 'count': len(rows), 'examples': rows[:limit]})
+    return out
+
+
 def inspect(corpus: Corpus, query: str, with_context: bool = True) -> dict:
     rows = hits(corpus, query)
     syls = reading(query)
     cs = contexts(corpus, rows) if with_context else []
-    note = ('本命令只给可核验的出处与读音，不给吉凶评分；'
-            + ('请读 contexts 里的整首诗。' if with_context
-               else '整首语境请用 shijing show（本次未打印，去掉 --no-context 即出）。'))
+    if not rows:
+        note = '无连用命中，故无语境可读；单字出处见 char_sources。'
+    elif with_context:
+        note = '本命令只给可核验的出处与读音，不给吉凶评分；请读 contexts 里的整首诗。'
+    else:
+        note = ('本命令只给可核验的出处与读音，不给吉凶评分；'
+                '整首语境请用 shijing show（本次未打印，去掉 --no-context 即出）。')
     return {
         'query': query,
         'hit_count': len(rows),
         'hits': rows,
         'chars': char_facts(corpus, query),
+        'char_sources': [] if rows else char_sources(corpus, query),
         'reading': [s.row() for s in syls],
         'links': links(syls),
         'contexts': cs,

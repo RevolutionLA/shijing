@@ -28,6 +28,15 @@ def test_单字都有但从不连用(corpus):
     assert {c['char'] for c in d['chars']} == {'德', '棣'}
 
 
+def test_组合无命中时给单字出处(corpus):
+    d = naming.inspect(corpus, '徐铎')
+    src = {s['char']: s for s in d['char_sources']}
+    assert src['徐']['count'] > 0 and src['铎']['count'] == 0
+    assert any('常武' == r['title'] for r in src['徐']['examples'])
+    assert 'char_sources' in d['note']
+    assert d['contexts'] == []
+
+
 def test_命中原句是完整章(corpus):
     d = naming.inspect(corpus, '之恒')
     assert d['hit_count'] == 1

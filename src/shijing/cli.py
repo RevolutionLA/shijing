@@ -218,6 +218,16 @@ def cmd_name(args) -> int:
     emit(hits[:args.top], 'table', ['分组', '篇名', '章', '原句'])
     if not data['hits']:
         print('  《诗经》里没有这两个字连用的句子——单字都有，也可能只是拼凑。')
+        print('\n单字出处：')
+        for cs in data['char_sources']:
+            if not cs['count']:
+                print(f'  {cs["char"]}：《诗经》全库未见此字。')
+                continue
+            more = f'（共 {cs["count"]} 处，列前 {len(cs["examples"])}）' \
+                if cs['count'] > len(cs['examples']) else ''
+            print(f'  {cs["char"]}：{more}')
+            for r in cs['examples']:
+                print(f'    {r["group"]}·{r["title"]} 第{r["stanza"]}章：{r["line"]}')
     print('\n用字：')
     chars = _zh(data['chars'], {'char': '字', 'freq': '次数', 'poems': '所见篇数',
                                 'tier': '档位'})
