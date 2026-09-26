@@ -1,5 +1,7 @@
 # 诗经 · 语料与统计分析
 
+[![CI](https://github.com/RevolutionLA/shijing/actions/workflows/ci.yml/badge.svg)](https://github.com/RevolutionLA/shijing/actions/workflows/ci.yml)
+
 对《诗经》全文做**结构化**与**可复现统计**的 Python 工具包：305 篇 / 30 组 / 约 3 万字，
 带命令行、字频词频、复沓（重章叠句）与韵脚分析，以及跨平台可出图的字云词云。
 

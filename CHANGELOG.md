@@ -34,6 +34,8 @@
 - 出图：`simhei.ttf` 硬编码与 `plt.show()` 导致无显示环境崩溃；改为跨平台字体探测 + 落盘 PNG
 - 字云口径：`Counter(text)` 把标点与换行计入"字"；现只统计汉字
 - 删除 `shijing_ziyun.py` 中重复创建两遍的 WordCloud 对象
+- CI：出图测试原本依赖运行环境自带中文字体，在干净 runner 上必挂；
+  现由 workflow 安装 `fonts-noto-cjk`，缺字体时该测试 skip 而非 fail
 
 ### 已知边界
 
