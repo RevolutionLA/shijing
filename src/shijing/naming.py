@@ -1,12 +1,15 @@
 """候选名的可核验材料：出处、语境、用字档位、读音。
 
-这个模块只回答能被语料证实的问题——某组字在《诗经》里连用没有、出现在哪句、
-那几个字有多常用、今天读起来是什么声调。名字"好不好"是语义与语域的判断，
-必须由人读完整首诗之后自己下，代码不做这件事，也不假装能做。
+这个模块只回答能被语料证实的问题——某组字连用过没有、出现在哪一句、那几个字有多
+常用、今天读起来是什么声调。默认检索范围是诗经加四书（`--book all`），因为取名时的
+出处习惯（"女诗经、男楚辞、文论语、武周易"）本来就横跨几部书，只查一半等于说谎。
+名字"好不好"是语义与语域的判断，必须由人读完整篇之后自己下，代码不做这件事，
+也不假装能做。
 """
 from __future__ import annotations
 
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 
 from . import analyze
@@ -18,7 +21,8 @@ FUNCTION = frozenset(
     '之乎者也以而于其且则兮矣哉惟维思亦何罔无既孔伊斯止尔女予汝彼此莫匪敢'
     '言载式来斯只')
 
-# (篇数下界, 档位名)——按本库 305 篇的分布取档，不是通用频率
+# (篇数下界, 档位名)——按诗经单库 305 篇的分布取档；合并检索时篇数的分母变成 341 篇，
+# 同一字的档位可能上调一档，跨口径比较要先固定 --book
 TIERS = ((120, '极常见'), (50, '常见'), (15, '中等'), (1, '较少'), (0, '未见'))
 
 
@@ -78,12 +82,16 @@ def links(sylls: list[Syllable]) -> list[str]:
     return out
 
 
-def _scan(corpus: Corpus) -> list[tuple[str, str, int, int, str, str]]:
-    """(分组, 篇名, 篇序, 章号, 原文, 归一文)。整库归一只做一次。"""
+def _scan(corpus: Corpus) -> list[tuple[str, str, str, int, int, str, str]]:
+    """(典籍, 分组, 篇名, 全库唯一键, 章号, 原文, 归一文)。整库归一只做一次。
+
+    键用 `uid` 而不是 `idx`：合并多本典籍时，《论语》第 1 篇和《诗经》第 1 篇的
+    idx 都是 1，靠 idx 会把语境挂到错的篇上。
+    """
     out = []
     for p in corpus.poems:
         for n, st in enumerate(p.stanzas, 1):
-            out.append((p.group, p.title, p.idx, n, st.strip(), normalize(st)))
+            out.append((p.book, p.group, p.title, p.uid, n, st.strip(), normalize(st)))
     return out
 
 
@@ -91,8 +99,8 @@ def hits(corpus: Corpus, query: str,
          lines: list[tuple] | None = None) -> list[dict]:
     """query 作为连续字符串命中的分句，繁简通搜。"""
     q = normalize(query)
-    return [{'group': g, 'title': t, 'poem_idx': i, 'stanza': n, 'line': raw}
-            for g, t, i, n, raw, ns in (lines or _scan(corpus)) if q in ns]
+    return [{'book': b, 'group': g, 'title': t, 'poem': u, 'stanza': n, 'line': raw}
+            for b, g, t, u, n, raw, ns in (lines or _scan(corpus)) if q in ns]
 
 
 def char_facts(corpus: Corpus, query: str,
@@ -109,15 +117,21 @@ def char_facts(corpus: Corpus, query: str,
 
 
 def contexts(corpus: Corpus, rows: list[dict]) -> list[dict]:
-    """命中所在篇的全文——判断语域唯一的依据，也是本模块存在的理由。"""
-    seen = {}
+    """命中所在篇的全文——判断语域唯一的依据，也是本模块存在的理由。
+
+    `matched` 记下哪些章/段真的命中，供展示层在一整篇几千字的散文典籍上只印
+    命中段；数据层仍给全文，`--format json` 拿到的永远是整篇。
+    """
+    seen = {r['poem'] for r in rows}
+    marks: dict[str, set[int]] = defaultdict(set)
     for r in rows:
-        seen.setdefault(r['poem_idx'], None)
+        marks[r['poem']].add(r['stanza'])
     out = []
     for p in corpus.poems:
-        if p.idx in seen:
-            out.append({'group': p.group, 'title': p.title, 'idx': p.idx,
-                        'stanzas': [s.strip() for s in p.stanzas]})
+        if p.uid in seen:
+            out.append({'book': p.book, 'group': p.group, 'title': p.title,
+                        'uid': p.uid, 'stanzas': [s.strip() for s in p.stanzas],
+                        'matched': sorted(marks[p.uid])})
     return out
 
 
@@ -144,12 +158,14 @@ def inspect(corpus: Corpus, query: str, with_context: bool = True) -> dict:
     if not rows:
         note = '无连用命中，故无语境可读；单字出处见 char_sources。'
     elif with_context:
-        note = '本命令只给可核验的出处与读音，不给吉凶评分；请读 contexts 里的整首诗。'
+        note = '本命令只给可核验的出处与读音，不给吉凶评分；请读 contexts 里的整篇原文。'
     else:
         note = ('本命令只给可核验的出处与读音，不给吉凶评分；'
                 '整首语境请用 shijing show（本次未打印，去掉 --no-context 即出）。')
     return {
         'query': query,
+        'corpus': {'books': corpus.books, 'poems': len(corpus.poems),
+                   'chars': corpus.total_chars},
         'hit_count': len(rows),
         'hits': rows,
         'chars': char_facts(corpus, query),

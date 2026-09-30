@@ -80,7 +80,7 @@ def reduplications(corpus: Corpus) -> list[Reduplication]:
         for m in AA.finditer(text):
             w = m.group(0)
             freq[w] += 1
-            docs[w].add(p.idx)
+            docs[w].add(p.uid)
     return sorted((Reduplication(w, c, len(docs[w])) for w, c in freq.items()),
                   key=lambda r: (-r.freq, r.token))
 

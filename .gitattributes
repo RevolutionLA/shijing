@@ -4,3 +4,8 @@
 *.ttf binary
 
 *.bat text eol=crlf
+
+# 上游原文存档必须逐字节保持：四书的 raw.json 带 CRLF，而 `* text=auto eol=lf`
+# 会把它们改写成 LF，git blob 校验和就不再等于上游，`test_四书原文存档与上游逐字节一致`
+# 会在新克隆（也就是 CI）上失败。-text = 既不转换也不按文本 diff。
+/data/books/*/raw.json -text

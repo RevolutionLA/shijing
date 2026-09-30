@@ -28,17 +28,24 @@ MIN_BODY_CHARS = 8
 class Poem:
     idx: int
     group: str
-    part: str          # 国风 / 小雅 / 大雅 / 周颂 / 鲁颂 / 商颂
+    part: str          # 国风 / 小雅 / 大雅 / 周颂 / 鲁颂 / 商颂；散文典籍为书名
     title: str
     stanzas: tuple[str, ...]
     versions: int = 1  # 合并进来的重复版本数
+    book: str = '诗经'  # 典籍名；idx 是「书内序号」，跨书会重号
 
     @property
     def chars(self) -> int:
         return sum(len(HAN.findall(s)) for s in self.stanzas)
 
+    @property
+    def uid(self) -> str:
+        """跨典籍唯一的键。凡把 idx 当文档 id 用的地方都要用它，否则《论语》第 1 篇
+        会和《诗经》第 1 篇撞在一起。"""
+        return f'{self.book}#{self.idx}'
+
     def __hash__(self):
-        return hash((self.group, self.title))
+        return hash((self.book, self.group, self.title))
 
 
 @dataclass
@@ -49,6 +56,15 @@ class Corpus:
     @property
     def total_chars(self) -> int:
         return sum(p.chars for p in self.poems)
+
+    @property
+    def books(self) -> list[str]:
+        """按出现顺序列典籍名（合并语料时不止一本）。"""
+        out: list[str] = []
+        for p in self.poems:
+            if p.book not in out:
+                out.append(p.book)
+        return out
 
     def groups(self) -> dict[str, list[Poem]]:
         out: dict[str, list[Poem]] = {}
@@ -327,10 +343,11 @@ def build(raw_path: str | Path = 'data/raw/shijing.txt',
 def to_dict(c: Corpus) -> dict:
     return {
         'poems': [{'idx': p.idx, 'group': p.group, 'part': p.part, 'title': p.title,
-                   'stanzas': list(p.stanzas), 'versions': p.versions}
+                   'stanzas': list(p.stanzas), 'versions': p.versions, 'book': p.book}
                   for p in c.poems],
         'findings': c.findings,
-        'stats': {'poems': len(c.poems), 'chars': c.total_chars},
+        'stats': {'poems': len(c.poems), 'chars': c.total_chars,
+                  'books': c.books},
     }
 
 
@@ -344,7 +361,8 @@ def load(path: str | Path) -> Corpus:
     d = json.loads(Path(path).read_text(encoding='utf-8'))
     return Corpus(
         poems=[Poem(idx=p['idx'], group=p['group'], part=p['part'], title=p['title'],
-                    stanzas=tuple(p['stanzas']), versions=p.get('versions', 1))
+                    stanzas=tuple(p['stanzas']), versions=p.get('versions', 1),
+                    book=p.get('book', '诗经'))
                for p in d['poems']],
         findings=d.get('findings', []),
     )

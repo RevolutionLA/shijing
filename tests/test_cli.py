@@ -62,7 +62,7 @@ def test_检索无命中不报错(capsys):
 def test_检索无命中的机器口径仍是合法结构(capsys):
     assert json.loads(run(capsys, 'search', '如珪', '--format', 'json')) == []
     assert run(capsys, 'search', '如珪', '--format', 'csv').strip() == \
-        'group,title,stanza,line'
+        'book,group,title,stanza,line'
 
 
 def test_韵脚表在任意工作目录都能找到(tmp_path, capsys, monkeypatch):

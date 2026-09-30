@@ -94,22 +94,23 @@ def test_整首语境随命中给出(corpus):
 
 
 def test_name命令的两种口径(capsys):
-    out = cli.main(['name', '令仪', '--no-context'])
+    # 固定只看诗经：name 的默认范围已扩到四书+诗经，这里的 3 处是诗经专属常数
+    out = cli.main(['--book', '诗经', 'name', '令仪', '--no-context'])
     assert out == 0
     text = capsys.readouterr().out
     assert '连用命中 3 处' in text and '极常见' not in text
-    assert cli.main(['name', '德棣', '--format', 'json']) == 0
+    assert cli.main(['--book', '诗经', 'name', '德棣', '--format', 'json']) == 0
     data = json.loads(capsys.readouterr().out)
     assert data['hit_count'] == 0 and len(data['chars']) == 2
 
 
 def test_top与max_context各自截断(capsys):
-    assert cli.main(['name', '君子', '--top', '2', '--max-context', '1']) == 0
+    assert cli.main(['--book', '诗经', 'name', '君子',
+                     '--top', '2', '--max-context', '1']) == 0
     text = capsys.readouterr().out
-    hits = [ln for ln in text.splitlines()
-            if ln.startswith(('国风·', '小雅·', '大雅·'))]
+    hits = [ln for ln in text.splitlines() if ln.startswith('诗经') and '·' in ln]
     assert len(hits) == 2                       # 命中句按 --top 截
-    assert '共 62 首' in text and '余 61 首' in text   # 语境按 --max-context 截
+    assert '共 62 篇' in text and '余 61 篇' in text   # 语境按 --max-context 截
 
 
 def test_整库归一只做一遍(corpus):
