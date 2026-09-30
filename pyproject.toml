@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "shijing"
-version = "0.4.1"
-description = "《诗经》文本分析工具：语料清洗、字频/词频统计与词云可视化"
+version = "0.5.0"
+description = "诗经与四书文本分析工具：语料清洗、字频/词频/韵脚统计、词云与候选名出处核验"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 classifiers = [
@@ -17,6 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Text Processing :: Linguistic",
     "Natural Language :: Chinese (Simplified)",
+    "Natural Language :: Chinese (Traditional)",
 ]
 dependencies = [
     "jieba>=0.42",
