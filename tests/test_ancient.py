@@ -88,3 +88,13 @@ def test_静态韵脚表只读盘一次(corpus, monkeypatch):
     ancient.summary(corpus)
     ancient.compare_modern(corpus)
     assert opens.count('rhyme_baxter1992.csv') == 1
+
+
+def test_韵标字母用不完(corpus):
+    """两个不同的局部韵类撞进同一个字母，就等于把不同的韵说成同一个。"""
+    from shijing.rhyme import _LABELS
+    groups = sorted((len({(c.stanza, c.keys[0]) for c in s.clauses if c.keys}), s.title)
+                    for s in ancient.schemes(corpus))
+    worst = groups[-1]
+    assert worst == (29, '抑')          # 全库最多的单篇（《大雅·抑》）
+    assert worst[0] < len(_LABELS)      # 离 62 个标签的上界还远，取模永远不会触发

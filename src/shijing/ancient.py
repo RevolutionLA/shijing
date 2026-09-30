@@ -13,7 +13,6 @@
 from __future__ import annotations
 
 import csv
-import string
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -22,10 +21,9 @@ from pathlib import Path
 from .clean import HAN
 from .corpus import Corpus
 from .paths import locate
-from .rhyme import _finals_loader
+from .rhyme import _LABELS, _finals_loader
 
 DEFAULT_PATH = 'data/rhyme_baxter1992.csv'
-_ALPHA = string.ascii_uppercase + string.ascii_lowercase
 
 
 @dataclass
@@ -131,7 +129,9 @@ def schemes(corpus: Corpus, path: str | Path = DEFAULT_PATH) -> list[AncientSche
                 continue
             key = (c.stanza, c.keys[0])
             if key not in letters:
-                letters[key] = _ALPHA[len(letters) % len(_ALPHA)]
+                # 与 rhyme.label_scheme 同一套 62 个标签、同样不取模：两个不同的
+                # 局部韵类撞进同一个字母，就等于把不同的韵说成同一个
+                letters[key] = _LABELS[len(letters)]
             marks.append(letters[key])
             if len(c.rhyme_chars) > 1:
                 internal += 1
