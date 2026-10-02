@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "shijing"
-version = "0.5.0"
+version = "0.5.1"
 description = "诗经与四书文本分析工具：语料清洗、字频/词频/韵脚统计、词云与候选名出处核验"
 requires-python = ">=3.10"
 license = {text = "MIT"}
