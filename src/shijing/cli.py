@@ -165,6 +165,9 @@ def cmd_rhyme_ancient(args, c) -> int:
             else:
                 print(f'  ·  {cl.text}   （不入韵）')
         return 0
+    if args.what == 'verify':
+        print(json.dumps(ancient.verify(c, path), ensure_ascii=False, indent=1))
+        return 0
     if args.what == 'compare':
         print(json.dumps(ancient.compare_modern(c, path),
                          ensure_ascii=False, indent=1))
@@ -339,7 +342,7 @@ def cmd_report(args) -> int:
         '典籍': c.books,
         '篇数': len(c.poems),
         '字数': c.total_chars,
-        '不重复单字': len({ch for ch in clean.normalize(c.text()) if '一' <= ch <= '鿿'}),
+        '不重复单字': len(cs),
         '分组': per,
         '高频字前10': [s.token for s in cs[:10]],
         '集中度': [f'{int(k * 100)}% 由前 {n} 个字覆盖' for k, n in analyze.coverage(cs)],
@@ -402,8 +405,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser('rhyme', help='韵脚：上古音口径（默认，取权威标注）或今音口径')
     sp.add_argument('--system', choices=['ancient', 'modern'], default='ancient',
                     help='ancient=Baxter《上古音手册》押韵字表；modern=今音韵母归类')
-    sp.add_argument('--what', choices=['summary', 'table', 'compare'], default='table',
-                    help='compare 仅上古口径：量化今音失真')
+    sp.add_argument('--what', choices=['summary', 'table', 'compare', 'verify'],
+                    default='table',
+                    help='compare 与 verify 仅上古口径：前者量化今音失真，'
+                         '后者把语料与韵脚表原文逐字对照')
     sp.add_argument('--rhyme-data', default=str(ancient.DEFAULT_PATH),
                     help='韵脚表路径（CC-BY-4.0，见 data/README.md）')
     sp.add_argument('--keep-particles', action='store_true',

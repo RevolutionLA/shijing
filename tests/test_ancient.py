@@ -98,3 +98,13 @@ def test_韵标字母用不完(corpus):
     worst = groups[-1]
     assert worst == (29, '抑')          # 全库最多的单篇（《大雅·抑》）
     assert worst[0] < len(_LABELS)      # 离 62 个标签的上界还远，取模永远不会触发
+
+
+def test_与韵脚表逐字校验可复现(corpus):
+    """README 引的是 `shijing rhyme --what verify` 的输出，不是某次一次性脚本的记忆。"""
+    v = ancient.verify(corpus)
+    assert v['poems'] == 305
+    assert v['aligned_poems'] + v['misaligned_poems'] == 305
+    assert (v['positions'], v['identical']) == (24828, 24311)
+    assert v['rate'] == 0.9792
+    assert v['top_variants'][0] == ['迺/乃', 21]     # 差异主体是异体字

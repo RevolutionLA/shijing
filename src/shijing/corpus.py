@@ -12,8 +12,15 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-HAN = re.compile(r'[一-鿿]')
-# 诗经篇名最长者〈昊天有成命〉五字；放宽到 6 以容纳繁简混排下的写法
+# 汉字字符类：基本区 + 扩展 A–G（U+3400–U+4DBF、U+4E00–U+9FFF、U+20000–U+33FFF）。
+# 只写基本区会漏账：归一表里有 634 条映射的简体目标落在扩展区，于是〈縨〉归一成𫄨、
+# 〈道〉相关字归一成𬤊 之类会整体逃出字频，导致 `report` 里「字数」与「字频合计」
+# 自相矛盾（实测差 120 处 / 52 个字形）。原文侧没有扩展区字形，所以总字数不受影响。
+HAN_RANGE = '㐀-䶿一-鿿\U00020000-\U00033fff'
+HAN = re.compile(rf'[{HAN_RANGE}]')
+# 诗经篇名最长者〈昊天有成命〉五字；放宽到 6 以容纳繁简混排下的写法。
+# 这里刻意只用基本区：它解析的是已冻结的 data/raw/shijing.txt，该文件不含扩展区字，
+# 放宽只会让「一行像篇名」的误判变多。
 TITLE_MAX = 6
 TITLE = re.compile(rf'[一-鿿]{{1,{TITLE_MAX}}}$')
 PU = re.compile(r'[，。！？；：、,.!?;:]')
@@ -22,6 +29,17 @@ HTML_RESIDUE = re.compile(r'</?[a-zA-Z][^>]*>?|/td>|/tr>|&#\d+;')
 # 分组标题的繁体写法
 GROUP_NORM = str.maketrans({'頌': '颂', '魯': '鲁', '國': '国', '風': '风'})
 MIN_BODY_CHARS = 8
+
+# 脱字签名：原文件的抓取损伤会把丢掉的字留成一个句内空洞，表现为连续两个标点。
+DROPPED = re.compile(r'[。，]{2}')
+# 能确证缺什么的才补。《野有死麕》第2章原文件作「林有朴。，」，Baxter《上古音手册》
+# 押韵字表同一句作「林有朴樕」（CC-BY-4.0，见 data/README.md），缺的字有据可依。
+# 《新台》第1章原文件把渲染不出的「泚」拆成部件「氵此」写了出来，同一句韵脚表作
+# 「新台有泚」——这类拆写若不改回来，字频表里就会多出一个不是字的「氵」。
+# 另外两处（定之方中、维鹈在梁）只以 `?/td>` 留下残迹，无法确定缺的是什么，不补。
+REPAIRS = (('林有朴。，', '林有朴樕，', '据 Baxter 韵脚表同句作「林有朴樕」'),
+           ('新台有氵此', '新台有泚', '据 Baxter 韵脚表同句作「新台有泚」，'
+                                     '原文件的「氵此」是把一个渲染不出的字拆成了部件'))
 
 
 @dataclass(frozen=True)
@@ -231,7 +249,33 @@ def parse(raw_text: str, overrides: dict[str, str] | None = None) -> Corpus:
     if stitched:
         findings.append('剔除跨篇粘贴串台的整章：' + '；'.join(
             f'《{t}》{n} 章（{why}）' for t, n, why in stitched))
+
+    holes = [f'{p.title} 第{n}章「{s}」'
+             for p in out for n, s in enumerate(p.stanzas, 1) if DROPPED.search(s)]
+    if holes:
+        findings.append(f'{len(holes)} 处连续标点，是原文件脱字留下的空洞：'
+                        + ' / '.join(holes))
+    repaired = _repair_dropped(out)
+    findings += ['补字：' + r for r in repaired]
+
     return Corpus(poems=_renumber(out), findings=findings)
+
+
+def _repair_dropped(poems: list[Poem]) -> list[str]:
+    """按 REPAIRS 登记表补字，逐笔返回说明文字。原句片段不在了就什么都不做。"""
+    done: list[str] = []
+    for i, p in enumerate(poems):
+        stanzas = list(p.stanzas)
+        for find, repl, why in REPAIRS:
+            for n, s in enumerate(stanzas):
+                if find in s:
+                    stanzas[n] = s.replace(find, repl)
+                    done.append(f'{p.group}·{p.title} 第{n + 1}章：'
+                                f'「{find}」→「{repl}」（{why}）')
+        if stanzas != list(p.stanzas):
+            poems[i] = Poem(p.idx, p.group, p.part, p.title, tuple(stanzas),
+                            p.versions, p.book)
+    return done
 
 
 def _norm_stanza(stanza: str) -> str:

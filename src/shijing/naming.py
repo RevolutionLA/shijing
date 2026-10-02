@@ -8,13 +8,12 @@
 """
 from __future__ import annotations
 
-import re
 from collections import defaultdict
 from dataclasses import dataclass
 
 from . import analyze
 from .clean import normalize
-from .corpus import Corpus
+from .corpus import HAN, Corpus
 
 # 单字虚词：统计上最高频，但它们进名字只起连接作用，档位要另眼看待
 FUNCTION = frozenset(
@@ -52,7 +51,7 @@ def reading(query: str) -> list[Syllable]:
     """普通话读音。多音字取 pypinyin 的词组默认读法，并把又读一并列出。"""
     from pypinyin import Style, lazy_pinyin, pinyin
 
-    chars = [ch for ch in query if re.search(r'[一-鿿]', ch)]
+    chars = [ch for ch in query if HAN.match(ch)]
     if not chars:
         return []
     word = ''.join(chars)
@@ -108,7 +107,7 @@ def char_facts(corpus: Corpus, query: str,
     """逐字的词频、所见篇数与档位。"""
     stats = stats if stats is not None else {s.token: s for s in analyze.char_stats(corpus)}
     out = []
-    for ch in dict.fromkeys(re.findall(r'[一-鿿]', normalize(query))):
+    for ch in dict.fromkeys(HAN.findall(normalize(query))):
         s = stats.get(ch)
         poems = s.poems if s else 0
         out.append({'char': ch, 'freq': s.freq if s else 0, 'poems': poems,
@@ -143,7 +142,7 @@ def char_sources(corpus: Corpus, query: str, limit: int | None = None,
     """
     lines = lines if lines is not None else _scan(corpus)
     out = []
-    for ch in dict.fromkeys(re.findall(r'[一-鿿]', normalize(query))):
+    for ch in dict.fromkeys(HAN.findall(normalize(query))):
         rows = hits(corpus, ch, lines)
         out.append({'char': ch, 'count': len(rows),
                     'examples': rows if limit is None else rows[:limit]})

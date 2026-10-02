@@ -160,3 +160,18 @@ def test_尾部整章与他篇逐字相同且无平行时判为串台():
     assert notes[0][1] == 1
     assert next(p for p in kept if p.title == '甲').stanzas == (
         a.stanzas[0], a.stanzas[1])
+
+
+def test_脱字只在外部权威给出同一个字时才补(corpus):
+    """原文件的抓取损伤会丢掉一个 Rare 字，留下「朴。，」这种连续标点空洞。
+
+    补字的门槛是韵脚表同一句作「林有朴樕」——有据可查；另两处只留 `?/td>` 残迹、
+    无法确定缺的是什么，因此只进 findings 报告，不动正文。
+    """
+    p = [x for x in corpus.poems if x.title == '野有死麕'][0]
+    assert '林有朴樕，野有死鹿' in p.stanzas[1]
+    q = [x for x in corpus.poems if x.title == '新台'][0]
+    assert '新台有泚' in q.stanzas[0]          # 原文件拆成部件写「氵此」
+    assert not any('。，' in s or '氵' in s for x in corpus.poems for s in x.stanzas)
+    assert sum(1 for f in corpus.findings if f.startswith('补字')) == 2
+    assert all('Baxter' in f for f in corpus.findings if f.startswith('补字'))

@@ -10,10 +10,11 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 
 from .clean import normalize
-from .corpus import Corpus, Poem
+from .corpus import HAN_RANGE, Corpus, Poem
 
 SENT_SPLIT = re.compile(r'[，。！？；：、]')
-AA = re.compile(r'([一-鿿])\1')
+# 与字频同一套汉字字符类，免得叠字统计与字频走两个口径
+AA = re.compile(rf'([{HAN_RANGE}])\1')
 
 
 @dataclass

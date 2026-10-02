@@ -190,6 +190,45 @@ def compare_modern(corpus: Corpus, path: str | Path = DEFAULT_PATH) -> dict:
     }
 
 
+def verify(corpus: Corpus, path: str | Path = DEFAULT_PATH) -> dict:
+    """与韵脚表原文逐字对照——本项目唯一的外部文本校验，README 引用的就是它的输出。
+
+    两边都走 `refrain.sentences` 分句并繁简归一，所以差异只可能来自用字与分句习惯，
+    不会来自标点或简繁。句数对不齐的篇目单独计数，不混进字符比例里。
+    """
+    from .refrain import sentences
+
+    data = load(path)
+    aligned = misaligned = 0
+    positions = same = 0
+    variants: Counter = Counter()
+    for p in corpus.poems:
+        ours = [s for st in p.stanzas for s in sentences(st)]
+        theirs = [c.text for c in data.get(p.idx, [])]
+        if len(ours) != len(theirs):
+            misaligned += 1
+            continue
+        aligned += 1
+        for a, b in zip(ours, theirs, strict=True):
+            if len(a) != len(b):
+                continue
+            positions += len(a)
+            for x, y in zip(a, b, strict=True):
+                if x == y:
+                    same += 1
+                else:
+                    variants[f'{y}/{x}'] += 1
+    return {
+        'poems': len(corpus.poems),
+        'aligned_poems': aligned,
+        'misaligned_poems': misaligned,
+        'positions': positions,
+        'identical': same,
+        'rate': round(same / positions, 4) if positions else 0,
+        'top_variants': [[k, n] for k, n in variants.most_common(10)],
+    }
+
+
 def summary(corpus: Corpus, path: str | Path = DEFAULT_PATH) -> dict:
     ss = schemes(corpus, path)
     lines = sum(s.lines for s in ss)

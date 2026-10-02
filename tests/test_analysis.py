@@ -19,6 +19,17 @@ def test_频率求和为一(corpus):
     assert abs(sum(s.rate for s in stats) - 1) < 1e-6
 
 
+def test_字频合计必须等于字数(corpus):
+    """这两个数在 `report` 里并排打印，不一致就是自相矛盾。
+
+    放宽汉字字符类之前差 99 处：归一表把 39 个字形送到了 CJK 扩展区
+    （縨→𫄨、道→𬤊 之类），而计数字符只认基本区，于是它们不进字频。
+    """
+    stats = analyze.char_stats(corpus)
+    assert sum(s.freq for s in stats) == corpus.total_chars == 29645
+    assert len(stats) == 2786          # 诗经不重复单字，含 40 个扩展区字形
+
+
 def test_篇目覆盖率在零一之间(corpus):
     for s in analyze.char_stats(corpus)[:20]:
         assert 0 < s.cover <= 1
