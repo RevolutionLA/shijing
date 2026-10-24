@@ -225,10 +225,12 @@ $ shijing name 之恒 --no-context
    字段，硬做只会是把使用者的偏好伪装成统计。用字档位的高低只在本库成立，
    与现代汉语的重名率无关；拼音取 pypinyin 的词组默认读法，姓氏与人名用音（单 shàn、
    乐 yuè）只作为"又读"列出，不代替人工审定。
-9. **数据文件随仓库分发，不进包。** `data/` 在 src 布局之外，所以只有从仓库根运行
-   （或 `pip install -e .`）才找得到语料与韵脚表；`pip install shijing` 那种装法目前
-   不给数据。版本只有一个来源 `pyproject.toml`，改版本后需重新 `pip install -e .`，
-   否则 `shijing --version` 仍是旧号（这条有测试守着）。
+9. **数据文件随仓库分发，`data/` 在 src 布局之外。** 数据目录的解析顺序是
+   `SHIJING_DATA` 环境变量 → 包内 `shijing/data` → 仓库根 `data/`（见
+   `src/shijing/paths.py`）。因此从仓库根运行或 `pip install -e .` 必定可用；
+   `pip install shijing`（非 editable）目前仍不带数据，除非你把语料放好并设置
+   `SHIJING_DATA=/path/to/data`。版本只有一个来源 `pyproject.toml`，改版本后需重新
+   `pip install -e .`，否则 `shijing --version` 仍是旧号（这条有测试守着）。
 
 以下四条是并入四书之后新增的边界：
 
